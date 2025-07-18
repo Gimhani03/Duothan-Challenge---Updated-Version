@@ -28,6 +28,8 @@ import {
   MenuItem,
   Tabs,
   Tab,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import {
   AdminPanelSettings as AdminIcon,
@@ -78,6 +80,10 @@ const AdminDashboard = () => {
     points: 100,
     timeLimit: 2,
     memoryLimit: 256,
+    testCases: [
+      { input: '', expectedOutput: '', isHidden: false },
+      { input: '', expectedOutput: '', isHidden: false }
+    ]
   });
 
   useEffect(() => {
@@ -220,6 +226,10 @@ const AdminDashboard = () => {
       points: challenge.points,
       timeLimit: challenge.timeLimit,
       memoryLimit: challenge.memoryLimit,
+      testCases: challenge.testCases || [
+        { input: '', expectedOutput: '', isHidden: false },
+        { input: '', expectedOutput: '', isHidden: false }
+      ]
     });
     setEditMode(true);
     setChallengeDialogOpen(true);
@@ -254,7 +264,31 @@ const AdminDashboard = () => {
       points: 100,
       timeLimit: 2,
       memoryLimit: 256,
+      testCases: [
+        { input: '', expectedOutput: '', isHidden: false },
+        { input: '', expectedOutput: '', isHidden: false }
+      ]
     });
+  };
+
+  const handleAddTestCase = () => {
+    setChallengeForm({
+      ...challengeForm,
+      testCases: [...challengeForm.testCases, { input: '', expectedOutput: '', isHidden: false }]
+    });
+  };
+
+  const handleRemoveTestCase = (index) => {
+    if (challengeForm.testCases.length > 1) {
+      const newTestCases = challengeForm.testCases.filter((_, i) => i !== index);
+      setChallengeForm({ ...challengeForm, testCases: newTestCases });
+    }
+  };
+
+  const handleTestCaseChange = (index, field, value) => {
+    const newTestCases = [...challengeForm.testCases];
+    newTestCases[index][field] = value;
+    setChallengeForm({ ...challengeForm, testCases: newTestCases });
   };
 
   const handleViewTeam = async (team) => {
@@ -875,6 +909,75 @@ const AdminDashboard = () => {
                 value={challengeForm.memoryLimit}
                 onChange={(e) => setChallengeForm({ ...challengeForm, memoryLimit: parseInt(e.target.value) })}
               />
+            </Grid>
+            
+            {/* Test Cases Section */}
+            <Grid item xs={12}>
+              <Box sx={{ mt: 2 }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Typography variant="h6">Test Cases</Typography>
+                  <Button 
+                    variant="outlined" 
+                    onClick={handleAddTestCase}
+                    size="small"
+                    startIcon={<AddIcon />}
+                  >
+                    Add Test Case
+                  </Button>
+                </Box>
+                
+                {challengeForm.testCases.map((testCase, index) => (
+                  <Paper key={index} sx={{ p: 2, mb: 2, backgroundColor: '#f5f5f5' }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                      <Typography variant="subtitle2">Test Case {index + 1}</Typography>
+                      {challengeForm.testCases.length > 1 && (
+                        <Button 
+                          onClick={() => handleRemoveTestCase(index)}
+                          size="small"
+                          color="error"
+                          startIcon={<DeleteIcon />}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </Box>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <TextField
+                          fullWidth
+                          label="Input"
+                          multiline
+                          rows={3}
+                          value={testCase.input}
+                          onChange={(e) => handleTestCaseChange(index, 'input', e.target.value)}
+                        />
+                      </Grid>
+                      <Grid item xs={6}>
+                        <TextField
+                          fullWidth
+                          label="Expected Output"
+                          multiline
+                          rows={3}
+                          value={testCase.expectedOutput}
+                          onChange={(e) => handleTestCaseChange(index, 'expectedOutput', e.target.value)}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <FormControl>
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={testCase.isHidden}
+                              onChange={(e) => handleTestCaseChange(index, 'isHidden', e.target.checked)}
+                            />
+                            Hidden Test Case (not visible to participants)
+                          </label>
+                        </FormControl>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                ))}
+              </Box>
             </Grid>
           </Grid>
         </DialogContent>

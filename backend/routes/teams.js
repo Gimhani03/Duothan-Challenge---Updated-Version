@@ -12,9 +12,19 @@ router.post('/create', auth, [
   body('description').optional().isLength({ max: 200 })
 ], async (req, res) => {
   try {
+    console.log('Team creation request:', {
+      userId: req.user?.userId,
+      body: req.body,
+      timestamp: new Date().toISOString()
+    });
+    
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
+      console.log('Validation errors:', errors.array());
+      return res.status(400).json({ 
+        message: 'Validation failed',
+        errors: errors.array() 
+      });
     }
 
     const { name, description, maxMembers } = req.body;
@@ -43,6 +53,9 @@ router.post('/create', auth, [
 
     await team.save();
 
+    // Check if the new team qualifies for unlock code
+    await team.checkAndGenerateUnlockCode();
+
     // Update user's team
     user.team = team._id;
     await user.save();
@@ -56,7 +69,30 @@ router.post('/create', auth, [
     });
   } catch (error) {
     console.error('Create team error:', error);
-    res.status(500).json({ message: 'Server error' });
+    
+    // Handle specific MongoDB errors
+    if (error.code === 11000) {
+      if (error.keyPattern?.name) {
+        return res.status(400).json({ message: 'Team name already exists' });
+      }
+      if (error.keyPattern?.inviteCode) {
+        return res.status(400).json({ message: 'Invite code collision. Please try again.' });
+      }
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        message: 'Validation failed',
+        errors: validationErrors 
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Server error during team creation',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -93,6 +129,9 @@ router.post('/join', auth, [
     // Add user to team
     team.members.push(userId);
     await team.save();
+
+    // Check if the team qualifies for unlock code (team composition might have changed)
+    await team.checkAndGenerateUnlockCode();
 
     // Update user's team
     user.team = team._id;

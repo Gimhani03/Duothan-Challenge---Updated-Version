@@ -61,6 +61,24 @@ const Team = () => {
 
   const handleCreateTeam = async () => {
     try {
+      console.log('Creating team with data:', teamData);
+      
+      // Client-side validation
+      if (!teamData.name || teamData.name.trim().length < 3) {
+        toast.error('Team name must be at least 3 characters long');
+        return;
+      }
+      
+      if (teamData.name.length > 50) {
+        toast.error('Team name must be no more than 50 characters');
+        return;
+      }
+      
+      if (teamData.description && teamData.description.length > 200) {
+        toast.error('Description must be no more than 200 characters');
+        return;
+      }
+      
       const response = await teamsAPI.create(teamData);
       setTeam(response.data.team);
       updateUser({ team: response.data.team._id });
@@ -68,7 +86,19 @@ const Team = () => {
       setTeamData({ name: '', description: '', maxMembers: 4 });
       toast.success('Team created successfully!');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to create team');
+      console.error('Team creation error:', error);
+      
+      // Handle specific error cases
+      if (error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || 'Invalid team data';
+        toast.error(errorMessage);
+      } else if (error.response?.status === 401) {
+        toast.error('You need to be logged in to create a team');
+      } else if (error.response?.status === 403) {
+        toast.error('You don\'t have permission to create a team');
+      } else {
+        toast.error('Failed to create team. Please try again.');
+      }
     }
   };
 
@@ -268,6 +298,14 @@ const Team = () => {
             value={teamData.name}
             onChange={(e) => setTeamData({ ...teamData, name: e.target.value })}
             sx={{ mb: 2 }}
+            error={teamData.name.length > 0 && teamData.name.length < 3}
+            helperText={
+              teamData.name.length > 0 && teamData.name.length < 3 
+                ? 'Team name must be at least 3 characters' 
+                : teamData.name.length > 50 
+                  ? 'Team name must be no more than 50 characters'
+                  : 'Enter a unique team name'
+            }
           />
           <TextField
             margin="dense"
@@ -279,6 +317,12 @@ const Team = () => {
             value={teamData.description}
             onChange={(e) => setTeamData({ ...teamData, description: e.target.value })}
             sx={{ mb: 2 }}
+            error={teamData.description.length > 200}
+            helperText={
+              teamData.description.length > 200 
+                ? 'Description must be no more than 200 characters'
+                : `${teamData.description.length}/200 characters`
+            }
           />
           <TextField
             margin="dense"
@@ -293,7 +337,16 @@ const Team = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreateTeam} variant="contained" disabled={!teamData.name.trim()}>
+          <Button 
+            onClick={handleCreateTeam} 
+            variant="contained" 
+            disabled={
+              !teamData.name.trim() || 
+              teamData.name.length < 3 || 
+              teamData.name.length > 50 ||
+              teamData.description.length > 200
+            }
+          >
             Create Team
           </Button>
         </DialogActions>

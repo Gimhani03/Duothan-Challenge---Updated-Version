@@ -6,8 +6,18 @@ const Team = require('../models/Team');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 const judge0Service = require('../services/judge0Service');
+const mockJudge0Service = require('../services/mockJudge0Service');
 
 const router = express.Router();
+
+// Helper function to get the appropriate Judge0 service
+function getJudge0Service() {
+  if (process.env.USE_MOCK_JUDGE0 === 'true') {
+    console.log('Using Mock Judge0 Service for development');
+    return mockJudge0Service;
+  }
+  return judge0Service;
+}
 
 // Submit code for algorithmic challenge
 router.post('/code', auth, [
@@ -51,7 +61,8 @@ router.post('/code', auth, [
     }
 
     // Get language ID for Judge0
-    const languageId = judge0Service.getLanguageId(language);
+    const judgeService = getJudge0Service();
+    const languageId = judgeService.getLanguageId(language);
 
     // Create submission
     const submission = new Submission({
@@ -68,7 +79,7 @@ router.post('/code', auth, [
 
     // Execute code with test cases
     try {
-      const testCaseResults = await judge0Service.executeWithTestCases(
+      const testCaseResults = await judgeService.executeWithTestCases(
         code,
         languageId,
         challenge.testCases
@@ -89,19 +100,46 @@ router.post('/code', auth, [
       // Check if all test cases passed
       const allPassed = testCaseResults.every(result => result.isCorrect);
       
+      // Check if challenge is already completed by this team
+      const alreadyCompleted = team.completedChallenges.some(
+        cc => cc.challengeId.toString() === challengeId
+      );
+      
       if (allPassed) {
         submission.status = 'accepted';
         submission.isCorrect = true;
         submission.points = challenge.points;
         
         // Update team's completed challenges and points
-        team.completedChallenges.push({
-          challengeId: challengeId,
-          completedAt: new Date(),
-          points: challenge.points
-        });
-        team.points += challenge.points;
+        if (!alreadyCompleted) {
+          team.completedChallenges.push({
+            challengeId: challengeId,
+            completedAt: new Date(),
+            points: challenge.points,
+            isCorrect: true,
+            pointsAwarded: true
+          });
+          team.points += challenge.points;
+        } else {
+          // Update existing completion record if it was previously incorrect
+          const existingCompletion = team.completedChallenges.find(
+            cc => cc.challengeId.toString() === challengeId
+          );
+          if (existingCompletion && !existingCompletion.isCorrect) {
+            existingCompletion.isCorrect = true;
+            existingCompletion.points = challenge.points;
+            existingCompletion.completedAt = new Date();
+            existingCompletion.pointsAwarded = true;
+            team.points += challenge.points;
+          }
+        }
         await team.save();
+        
+        // Check if all algorithmic challenges are now completed correctly
+        if (challenge.type === 'algorithmic') {
+          // Use the new team method to check and generate unlock code
+          await team.checkAndGenerateUnlockCode();
+        }
       } else {
         // Determine overall status based on test case results
         const hasCompilationError = testCaseResults.some(r => r.status === 'Compilation Error');
@@ -116,6 +154,19 @@ router.post('/code', auth, [
           submission.status = 'time_limit_exceeded';
         } else {
           submission.status = 'wrong_answer';
+        }
+        
+        // Mark challenge as completed (attempted) even if wrong answer
+        // But don't award points for incorrect solutions
+        if (!alreadyCompleted) {
+          team.completedChallenges.push({
+            challengeId: challengeId,
+            completedAt: new Date(),
+            points: 0, // No points for wrong answers
+            isCorrect: false,
+            pointsAwarded: false // No points awarded for incorrect solutions
+          });
+          await team.save();
         }
       }
 
@@ -137,9 +188,18 @@ router.post('/code', auth, [
         }
       };
 
+      // Check if unlock code was just generated
+      const updatedTeam = await Team.findById(team._id);
+      const unlockCodeGenerated = updatedTeam.buildathonUnlockCode && !team.buildathonUnlockCode;
+      
       res.json({
         message: allPassed ? 'All test cases passed!' : 'Some test cases failed',
-        submission: responseData
+        submission: responseData,
+        unlockCode: unlockCodeGenerated ? {
+          generated: true,
+          code: updatedTeam.buildathonUnlockCode,
+          message: '🎉 Congratulations! You have completed all algorithmic challenges. Use this code to unlock buildathon challenges.'
+        } : null
       });
 
     } catch (judgeError) {
@@ -195,12 +255,20 @@ router.post('/github', auth, [
       return res.status(400).json({ message: 'Please provide a valid GitHub URL' });
     }
 
+    // Get team
+    const team = await Team.findById(user.team);
+    
     // Check if team already submitted for this challenge
     const existingSubmission = await Submission.findOne({
       team: user.team,
       challenge: challengeId,
       submissionType: 'github'
     });
+
+    // Check if challenge is already completed
+    const alreadyCompleted = team.completedChallenges.some(
+      cc => cc.challengeId.toString() === challengeId
+    );
 
     if (existingSubmission) {
       // Update existing submission
@@ -226,9 +294,26 @@ router.post('/github', auth, [
 
       await submission.save();
 
+      // Mark challenge as completed (attempted) when buildathon submission is made
+      if (!alreadyCompleted) {
+        team.completedChallenges.push({
+          challengeId: challengeId,
+          completedAt: new Date(),
+          points: challenge.points, // Award points for buildathon submissions
+          isCorrect: true, // Mark buildathon submissions as correct since they're manual review
+          pointsAwarded: true // Mark that points have been awarded
+        });
+        team.points += challenge.points;
+        await team.save();
+        
+        console.log(`🏗️ Buildathon challenge completed by team ${team.name}: ${challenge.title}`);
+        console.log(`   - Points awarded: ${challenge.points}`);
+      }
+
       res.json({
         message: 'GitHub submission created successfully',
-        submission
+        submission,
+        pointsAwarded: !alreadyCompleted ? challenge.points : 0
       });
     }
 
@@ -435,18 +520,19 @@ router.post('/run', auth, [
     }
 
     // Get language ID for Judge0
-    const languageId = judge0Service.getLanguageId(language);
+    const judgeService = getJudge0Service();
+    const languageId = judgeService.getLanguageId(language);
 
     try {
       // Submit code to Judge0 for execution
-      const submissionResponse = await judge0Service.submitCode(
+      const submissionResponse = await judgeService.submitCode(
         code,
         languageId,
         input
       );
 
       // Wait for result
-      const result = await judge0Service.waitForResult(submissionResponse.token);
+      const result = await judgeService.waitForResult(submissionResponse.token);
 
       // Prepare response
       const executionResult = {
@@ -477,6 +563,135 @@ router.post('/run', auth, [
 
   } catch (error) {
     console.error('Run endpoint error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Admin: Update buildathon submission status
+router.put('/admin/buildathon/:submissionId', auth, async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const { status, feedback, pointsAwarded } = req.body;
+    
+    // Check if user is admin (you might want to add adminAuth middleware)
+    // For now, we'll just check if the user has admin role
+    const user = await User.findById(req.user.userId);
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const submission = await Submission.findById(submissionId)
+      .populate('challenge')
+      .populate('team');
+    
+    if (!submission) {
+      return res.status(404).json({ message: 'Submission not found' });
+    }
+
+    if (submission.submissionType !== 'github') {
+      return res.status(400).json({ message: 'This endpoint is for buildathon submissions only' });
+    }
+
+    // Update submission status
+    submission.status = status;
+    if (feedback) submission.feedback = feedback;
+    await submission.save();
+
+    const team = submission.team;
+    const challenge = submission.challenge;
+    
+    // Find existing completion record
+    const existingCompletion = team.completedChallenges.find(
+      cc => cc.challengeId.toString() === challenge._id.toString()
+    );
+
+    if (existingCompletion) {
+      // Update existing completion record
+      if (status === 'accepted') {
+        existingCompletion.isCorrect = true;
+        existingCompletion.points = pointsAwarded || challenge.points;
+        
+        // Add points if not already awarded
+        if (!existingCompletion.pointsAwarded) {
+          team.points += existingCompletion.points;
+          existingCompletion.pointsAwarded = true;
+        }
+      } else if (status === 'rejected') {
+        existingCompletion.isCorrect = false;
+        
+        // Remove points if they were previously awarded
+        if (existingCompletion.pointsAwarded) {
+          team.points -= existingCompletion.points;
+          existingCompletion.pointsAwarded = false;
+        }
+        existingCompletion.points = 0;
+      }
+      
+      await team.save();
+    }
+
+    console.log(`🏗️ Admin updated buildathon submission: ${submission._id}`);
+    console.log(`   - Team: ${team.name}`);
+    console.log(`   - Challenge: ${challenge.title}`);
+    console.log(`   - Status: ${status}`);
+    console.log(`   - Points: ${pointsAwarded || challenge.points}`);
+
+    res.json({
+      message: 'Buildathon submission updated successfully',
+      submission: {
+        ...submission.toObject(),
+        status,
+        feedback
+      }
+    });
+
+  } catch (error) {
+    console.error('Admin update buildathon submission error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Admin: Get all buildathon submissions
+router.get('/admin/buildathon', auth, async (req, res) => {
+  try {
+    // Check if user is admin
+    const user = await User.findById(req.user.userId);
+    if (!user || user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+    const status = req.query.status; // Filter by status if provided
+
+    const query = { submissionType: 'github' };
+    if (status) {
+      query.status = status;
+    }
+
+    const submissions = await Submission.find(query)
+      .populate('challenge', 'title type difficulty points')
+      .populate('team', 'name')
+      .populate('submittedBy', 'username')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Submission.countDocuments(query);
+
+    res.json({
+      submissions,
+      pagination: {
+        current: page,
+        pages: Math.ceil(total / limit),
+        total,
+        limit
+      }
+    });
+
+  } catch (error) {
+    console.error('Admin get buildathon submissions error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

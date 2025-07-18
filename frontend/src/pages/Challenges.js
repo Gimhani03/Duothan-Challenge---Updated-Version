@@ -60,6 +60,11 @@ const Challenges = () => {
         setAllAlgorithmicCompleted(response.data.allAlgorithmicCompleted);
         setBuildathonUnlocked(response.data.buildathonUnlocked);
         setCompletedCount(response.data.completedCount);
+        
+        // Set unlock code if available
+        if (response.data.unlockCode) {
+          setGeneratedCode(response.data.unlockCode);
+        }
       } else {
         // Legacy format support
         const challenges = response.data.challenges || [];
@@ -194,15 +199,31 @@ const Challenges = () => {
             />
           </Box>
           
-          {allAlgorithmicCompleted && !buildathonUnlocked && (
-            <Button
-              variant="contained"
-              color="success"
-              startIcon={<TrophyIcon />}
-              onClick={handleGenerateUnlockCode}
-            >
-              Get Buildathon Unlock Code
-            </Button>
+          {/* Show unlock code button or display code if available */}
+          {allAlgorithmicCompleted && (
+            <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
+              {generatedCode && (
+                <Paper sx={{ p: 2, bgcolor: '#e8f5e8', border: '1px solid #4caf50' }}>
+                  <Typography variant="body2" color="text.secondary" mb={1}>
+                    🎉 Your Buildathon Unlock Code:
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontFamily: 'monospace', color: '#2e7d32' }}>
+                    {generatedCode}
+                  </Typography>
+                </Paper>
+              )}
+              
+              {!buildathonUnlocked && (
+                <Button
+                  variant="contained"
+                  color="success"
+                  startIcon={<TrophyIcon />}
+                  onClick={handleGenerateUnlockCode}
+                >
+                  Get Buildathon Unlock Code
+                </Button>
+              )}
+            </Box>
           )}
         </Box>
 

@@ -20,40 +20,78 @@ router.get('/', auth, async (req, res) => {
     }
 
     const team = await Team.findById(user.team).populate('completedChallenges.challengeId');
-    const completedChallengeIds = team.completedChallenges.map(cc => cc.challengeId._id.toString());
+    const completedChallengeIds = team.completedChallenges
+      .filter(cc => cc.challengeId !== null)
+      .map(cc => cc.challengeId._id.toString());
+    
+    // Get correctly solved challenges (for buildathon unlock logic)
+    const correctlySolvedChallengeIds = team.completedChallenges
+      .filter(cc => cc.challengeId !== null && cc.isCorrect === true)
+      .map(cc => cc.challengeId._id.toString());
 
     // Get all active challenges separated by type
     const allChallenges = await Challenge.find({ isActive: true }).sort({ type: 1, createdAt: 1 });
     const algorithmicChallenges = allChallenges.filter(c => c.type === 'algorithmic');
     const buildathonChallenges = allChallenges.filter(c => c.type === 'buildathon');
 
-    // Check if all algorithmic challenges are completed
-    const completedAlgorithmicCount = algorithmicChallenges.filter(challenge => 
+    // Get team's required challenges for versioned requirements
+    let requiredChallenges = [];
+    if (team.requiredChallenges && team.requiredChallenges.length > 0) {
+      // Use versioned requirements
+      const requiredIds = team.requiredChallenges.map(rc => rc.challengeId.toString());
+      requiredChallenges = algorithmicChallenges.filter(c => requiredIds.includes(c._id.toString()));
+    } else {
+      // Fallback to all current algorithmic challenges
+      requiredChallenges = algorithmicChallenges;
+    }
+
+    // Check if all required challenges are completed (for buildathon unlock)
+    const completedAlgorithmicCount = requiredChallenges.filter(challenge => 
       completedChallengeIds.includes(challenge._id.toString())
     ).length;
-    const allAlgorithmicCompleted = algorithmicChallenges.length > 0 && 
-                                   completedAlgorithmicCount === algorithmicChallenges.length;
+    
+    const correctlySolvedAlgorithmicCount = requiredChallenges.filter(challenge => 
+      correctlySolvedChallengeIds.includes(challenge._id.toString())
+    ).length;
+    
+    // Use completion (not correctness) for buildathon unlock
+    const allAlgorithmicCompleted = requiredChallenges.length > 0 && 
+                                   completedAlgorithmicCount === requiredChallenges.length;
 
     // Add completion status to algorithmic challenges
-    const algorithmicWithStatus = algorithmicChallenges.map(challenge => ({
-      ...challenge.toObject(),
-      isCompleted: completedChallengeIds.includes(challenge._id.toString()),
-      testCases: challenge.testCases?.map(tc => ({
-        ...tc,
-        expectedOutput: tc.isHidden ? '[Hidden]' : tc.expectedOutput
-      })) || []
-    }));
+    const algorithmicWithStatus = algorithmicChallenges.map(challenge => {
+      const isCompleted = completedChallengeIds.includes(challenge._id.toString());
+      const isCorrect = correctlySolvedChallengeIds.includes(challenge._id.toString());
+      
+      return {
+        ...challenge.toObject(),
+        isCompleted: isCompleted,
+        isCorrect: isCorrect,
+        status: isCorrect ? 'solved' : (isCompleted ? 'attempted' : 'not_attempted'),
+        testCases: challenge.testCases?.map(tc => ({
+          ...tc,
+          expectedOutput: tc.isHidden ? '[Hidden]' : tc.expectedOutput
+        })) || []
+      };
+    });
 
     // Add completion status to buildathon challenges
-    const buildathonWithStatus = buildathonChallenges.map(challenge => ({
-      ...challenge.toObject(),
-      isCompleted: completedChallengeIds.includes(challenge._id.toString()),
-      isLocked: !team.buildathonUnlocked,
-      testCases: challenge.testCases?.map(tc => ({
-        ...tc,
-        expectedOutput: tc.isHidden ? '[Hidden]' : tc.expectedOutput
-      })) || []
-    }));
+    const buildathonWithStatus = buildathonChallenges.map(challenge => {
+      const isCompleted = completedChallengeIds.includes(challenge._id.toString());
+      const isCorrect = correctlySolvedChallengeIds.includes(challenge._id.toString());
+      
+      return {
+        ...challenge.toObject(),
+        isCompleted: isCompleted,
+        isCorrect: isCorrect,
+        status: isCorrect ? 'solved' : (isCompleted ? 'attempted' : 'not_attempted'),
+        isLocked: !team.buildathonUnlocked,
+        testCases: challenge.testCases?.map(tc => ({
+          ...tc,
+          expectedOutput: tc.isHidden ? '[Hidden]' : tc.expectedOutput
+        })) || []
+      };
+    });
 
     res.json({
       success: true,
@@ -61,9 +99,24 @@ router.get('/', auth, async (req, res) => {
       buildathon: buildathonWithStatus,
       allAlgorithmicCompleted,
       buildathonUnlocked: team.buildathonUnlocked,
+      unlockCode: allAlgorithmicCompleted ? team.buildathonUnlockCode : null,
       completedCount: {
         algorithmic: completedAlgorithmicCount,
-        total: algorithmicChallenges.length
+        algorithmicCorrect: correctlySolvedAlgorithmicCount,
+        total: algorithmicChallenges.length,
+        required: requiredChallenges.length,
+        requiredCorrect: correctlySolvedAlgorithmicCount
+      },
+      teamStats: {
+        totalPoints: team.points,
+        totalAttempted: completedChallengeIds.length,
+        totalSolved: correctlySolvedChallengeIds.length
+      },
+      versioning: {
+        hasVersionedRequirements: team.requiredChallenges && team.requiredChallenges.length > 0,
+        requiredChallenges: team.requiredChallenges || [],
+        requiredCount: requiredChallenges.length,
+        totalAvailable: algorithmicChallenges.length
       }
     });
   } catch (error) {
@@ -90,27 +143,38 @@ router.get('/:id', auth, async (req, res) => {
     }
 
     const team = await Team.findById(user.team).populate('completedChallenges.challengeId');
-    const completedChallengeIds = team.completedChallenges.map(cc => cc.challengeId._id.toString());
+    const completedChallengeIds = team.completedChallenges
+      .filter(cc => cc.challengeId !== null)
+      .map(cc => cc.challengeId._id.toString());
+    
+    const correctlySolvedChallengeIds = team.completedChallenges
+      .filter(cc => cc.challengeId !== null && cc.isCorrect === true)
+      .map(cc => cc.challengeId._id.toString());
 
     // Check unlock conditions
     if (challenge.unlockConditions && challenge.unlockConditions.length > 0) {
       const hasAccess = challenge.unlockConditions.every(conditionId => 
-        completedChallengeIds.includes(conditionId.toString())
+        correctlySolvedChallengeIds.includes(conditionId.toString())
       );
       
       if (!hasAccess) {
-        return res.status(403).json({ message: 'This challenge is locked' });
+        return res.status(403).json({ message: 'This challenge is locked. You need to correctly solve the prerequisite challenges first.' });
       }
     }
 
     // Hide expected output for hidden test cases
+    const isCompleted = completedChallengeIds.includes(challenge._id.toString());
+    const isCorrect = correctlySolvedChallengeIds.includes(challenge._id.toString());
+    
     const challengeData = {
       ...challenge.toObject(),
       testCases: challenge.testCases.map(tc => ({
         ...tc,
         expectedOutput: tc.isHidden ? '[Hidden]' : tc.expectedOutput
       })),
-      isCompleted: completedChallengeIds.includes(challenge._id.toString())
+      isCompleted: isCompleted,
+      isCorrect: isCorrect,
+      status: isCorrect ? 'solved' : (isCompleted ? 'attempted' : 'not_attempted')
     };
 
     res.json({ challenge: challengeData });
@@ -147,6 +211,17 @@ router.post('/admin/create', auth, adminAuth, [
     const challenge = new Challenge(req.body);
     await challenge.save();
 
+    // If this is an algorithmic challenge being created, 
+    // it only affects NEW teams (preserving versioned requirements)
+    if (challenge.type === 'algorithmic') {
+      console.log(`📝 New algorithmic challenge created: ${challenge.title}`);
+      console.log(`   - Only NEW teams will need to complete this challenge for unlock codes`);
+      console.log(`   - Existing teams maintain their original requirements`);
+      
+      // No need to affect existing teams - they keep their versioned requirements
+      // Only new teams will get this challenge in their requirements
+    }
+
     res.status(201).json({
       message: 'Challenge created successfully',
       challenge
@@ -169,8 +244,17 @@ router.put('/admin/:id', auth, adminAuth, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
+    const wasAlgorithmic = challenge.type === 'algorithmic';
+    const wasActive = challenge.isActive;
+    
     Object.assign(challenge, req.body);
     await challenge.save();
+
+    // If this was an algorithmic challenge and its active status changed,
+    // check if any teams now qualify for unlock codes
+    if (wasAlgorithmic && (wasActive !== challenge.isActive)) {
+      await checkAndGenerateUnlockCodes();
+    }
 
     res.json({
       message: 'Challenge updated successfully',
@@ -191,8 +275,15 @@ router.delete('/admin/:id', auth, adminAuth, async (req, res) => {
       return res.status(404).json({ message: 'Challenge not found' });
     }
 
+    const wasAlgorithmic = challenge.type === 'algorithmic';
+    
     challenge.isActive = false;
     await challenge.save();
+
+    // If this was an algorithmic challenge, check if any teams now qualify for unlock codes
+    if (wasAlgorithmic) {
+      await checkAndGenerateUnlockCodes();
+    }
 
     res.json({ message: 'Challenge deleted successfully' });
   } catch (error) {
@@ -200,6 +291,16 @@ router.delete('/admin/:id', auth, adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// Helper function to check all teams and generate unlock codes if needed
+async function checkAndGenerateUnlockCodes() {
+  try {
+    const codesGenerated = await Team.checkAllTeamsForUnlockCodes();
+    console.log(`� Admin action triggered unlock code check - Generated ${codesGenerated} new codes`);
+  } catch (error) {
+    console.error('Error checking unlock codes after admin action:', error);
+  }
+}
 
 // Admin: Get all challenges
 router.get('/admin/all', auth, adminAuth, async (req, res) => {
@@ -234,9 +335,17 @@ router.post('/unlock-buildathon', auth, async (req, res) => {
       return res.status(400).json({ message: 'Buildathon challenges are already unlocked for your team' });
     }
 
-    // Check if all algorithmic challenges are completed
+    // Check if all algorithmic challenges are completed (not necessarily correct)
     const algorithmicChallenges = await Challenge.find({ type: 'algorithmic', isActive: true });
-    const completedChallengeIds = team.completedChallenges.map(cc => cc.challengeId._id.toString());
+    const completedChallengeIds = team.completedChallenges
+      .filter(cc => cc.challengeId !== null)
+      .map(cc => cc.challengeId._id.toString());
+    
+    const correctlySolvedChallengeIds = team.completedChallenges
+      .filter(cc => cc.challengeId !== null && cc.isCorrect === true)
+      .map(cc => cc.challengeId._id.toString());
+    
+    // Use completion count for unlock eligibility
     const completedAlgorithmicCount = algorithmicChallenges.filter(challenge => 
       completedChallengeIds.includes(challenge._id.toString())
     ).length;
@@ -282,17 +391,42 @@ router.post('/generate-unlock-code', auth, async (req, res) => {
 
     const team = await Team.findById(user.team).populate('completedChallenges.challengeId');
     
-    // Check if all algorithmic challenges are completed
-    const algorithmicChallenges = await Challenge.find({ type: 'algorithmic', isActive: true });
-    const completedChallengeIds = team.completedChallenges.map(cc => cc.challengeId._id.toString());
-    const completedAlgorithmicCount = algorithmicChallenges.filter(challenge => 
+    // Check if all required challenges are completed (using versioning)
+    let requiredChallenges = [];
+    if (team.requiredChallenges && team.requiredChallenges.length > 0) {
+      // Use versioned requirements
+      const requiredIds = team.requiredChallenges.map(rc => rc.challengeId);
+      requiredChallenges = await Challenge.find({ 
+        _id: { $in: requiredIds }, 
+        type: 'algorithmic', 
+        isActive: true 
+      });
+    } else {
+      // Fallback to all current algorithmic challenges
+      requiredChallenges = await Challenge.find({ type: 'algorithmic', isActive: true });
+    }
+    
+    const completedChallengeIds = team.completedChallenges
+      .filter(cc => cc.challengeId !== null)
+      .map(cc => cc.challengeId._id.toString());
+    
+    const correctlySolvedChallengeIds = team.completedChallenges
+      .filter(cc => cc.challengeId !== null && cc.isCorrect === true)
+      .map(cc => cc.challengeId._id.toString());
+    
+    // Use completion count for unlock eligibility
+    const completedRequiredCount = requiredChallenges.filter(challenge => 
       completedChallengeIds.includes(challenge._id.toString())
     ).length;
 
-    if (algorithmicChallenges.length === 0 || completedAlgorithmicCount !== algorithmicChallenges.length) {
+    if (requiredChallenges.length === 0 || completedRequiredCount !== requiredChallenges.length) {
       return res.status(400).json({ 
-        message: 'Complete all algorithmic challenges first',
-        progress: `${completedAlgorithmicCount}/${algorithmicChallenges.length} completed`
+        message: 'Complete all required algorithmic challenges first',
+        progress: `${completedRequiredCount}/${requiredChallenges.length} required challenges completed`,
+        versioning: {
+          hasVersionedRequirements: team.requiredChallenges && team.requiredChallenges.length > 0,
+          requiredCount: requiredChallenges.length
+        }
       });
     }
 
@@ -306,7 +440,7 @@ router.post('/generate-unlock-code', auth, async (req, res) => {
     res.json({
       success: true,
       unlockCode: team.buildathonUnlockCode,
-      message: 'Congratulations! You have completed all algorithmic challenges. Use this code to unlock buildathon challenges.'
+      message: 'Congratulations! You have correctly solved all algorithmic challenges. Use this code to unlock buildathon challenges.'
     });
   } catch (error) {
     console.error('Error generating unlock code:', error);

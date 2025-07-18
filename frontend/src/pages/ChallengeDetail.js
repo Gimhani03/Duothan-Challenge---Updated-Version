@@ -42,6 +42,10 @@ const ChallengeDetail = () => {
   const [submissions, setSubmissions] = useState([]);
   const [executionResult, setExecutionResult] = useState(null);
   const [testInput, setTestInput] = useState('');
+  
+  // Buildathon submission state
+  const [githubUrl, setGithubUrl] = useState('');
+  const [submittingGithub, setSubmittingGithub] = useState(false);
 
   // Language templates
   const getLanguageTemplate = (lang) => {
@@ -176,6 +180,23 @@ const ChallengeDetail = () => {
 
       if (response.data.submission.status === 'accepted') {
         toast.success('Challenge completed successfully! 🎉');
+        
+        // Check if unlock code was generated
+        if (response.data.unlockCode && response.data.unlockCode.generated) {
+          toast.success(response.data.unlockCode.message, { 
+            autoClose: 10000, // Show for 10 seconds
+            hideProgressBar: false 
+          });
+          
+          // Show unlock code in a more prominent way
+          setTimeout(() => {
+            toast.info(`🔑 Your Buildathon Unlock Code: ${response.data.unlockCode.code}`, {
+              autoClose: 15000, // Show for 15 seconds
+              hideProgressBar: false
+            });
+          }, 1000);
+        }
+        
         // Refresh team data to update completed challenges
         const teamResponse = await teamsAPI.getMyTeam();
         setTeam(teamResponse.data.team);
@@ -210,6 +231,48 @@ const ChallengeDetail = () => {
       toast.error(error.response?.data?.message || 'Failed to submit code');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Handle buildathon submission
+  const handleBuildathonSubmit = async () => {
+    if (!githubUrl.trim()) {
+      toast.error('Please enter a GitHub repository URL');
+      return;
+    }
+
+    if (!githubUrl.includes('github.com')) {
+      toast.error('Please enter a valid GitHub URL');
+      return;
+    }
+
+    try {
+      setSubmittingGithub(true);
+      
+      const response = await submissionsAPI.submitGithub({
+        challengeId: id,
+        githubUrl: githubUrl.trim()
+      });
+
+      if (response.data.pointsAwarded > 0) {
+        toast.success(`🎉 ${response.data.message} - ${response.data.pointsAwarded} points awarded!`);
+      } else {
+        toast.success(response.data.message);
+      }
+
+      // Refresh team data to update completed challenges
+      const teamResponse = await teamsAPI.getMyTeam();
+      setTeam(teamResponse.data.team);
+      
+      // Refresh challenge data to update completion status
+      const challengeResponse = await challengesAPI.getById(id);
+      setChallenge(challengeResponse.data.challenge);
+
+    } catch (error) {
+      console.error('Error submitting GitHub URL:', error);
+      toast.error(error.response?.data?.message || 'Failed to submit GitHub URL');
+    } finally {
+      setSubmittingGithub(false);
     }
   };
 
@@ -348,58 +411,104 @@ const ChallengeDetail = () => {
           </Paper>
         </Grid>
 
-        {/* Code Editor */}
+        {/* Solution Section */}
         <Grid item xs={12} lg={6}>
           <Paper sx={{ p: 3, height: 'fit-content' }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
               <Typography variant="h5">
-                Solution
+                {challenge.type === 'buildathon' ? 'Project Submission' : 'Solution'}
               </Typography>
-              <Box display="flex" gap={1}>
-                <Button
+              
+              {challenge.type === 'algorithmic' && (
+                <Box display="flex" gap={1}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<RunIcon />}
+                    onClick={handleRunCode}
+                    disabled={running || submitting}
+                  >
+                    {running ? 'Running...' : 'Run'}
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<SubmitIcon />}
+                    onClick={handleSubmit}
+                    disabled={submitting || isCompleted}
+                  >
+                    {submitting ? 'Submitting...' : 'Submit'}
+                  </Button>
+                </Box>
+              )}
+            </Box>
+
+            {challenge.type === 'algorithmic' ? (
+              <>
+                <CodeEditor
+                  value={code}
+                  onChange={setCode}
+                  language={language}
+                  onLanguageChange={handleLanguageChange}
+                  height="400px"
+                />
+
+                {/* Test Input Section */}
+                <Box sx={{ mt: 2 }}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    label="Test Input (Optional)"
+                    placeholder="Enter custom input for testing..."
+                    value={testInput}
+                    onChange={(e) => setTestInput(e.target.value)}
+                    variant="outlined"
+                    size="small"
+                  />
+                </Box>
+              </>
+            ) : (
+              /* Buildathon Submission Form */
+              <Box>
+                <Typography variant="body1" color="text.secondary" mb={2}>
+                  Submit your GitHub repository containing the complete project solution.
+                </Typography>
+                
+                <TextField
+                  fullWidth
+                  label="GitHub Repository URL"
+                  placeholder="https://github.com/username/repository"
+                  value={githubUrl}
+                  onChange={(e) => setGithubUrl(e.target.value)}
                   variant="outlined"
-                  startIcon={<RunIcon />}
-                  onClick={handleRunCode}
-                  disabled={running || submitting}
-                >
-                  {running ? 'Running...' : 'Run'}
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<SubmitIcon />}
-                  onClick={handleSubmit}
-                  disabled={submitting || isCompleted}
-                >
-                  {submitting ? 'Submitting...' : 'Submit'}
-                </Button>
+                  sx={{ mb: 2 }}
+                />
+                
+                <Box display="flex" gap={2} mb={2}>
+                  <Button
+                    variant="contained"
+                    startIcon={<SubmitIcon />}
+                    onClick={handleBuildathonSubmit}
+                    disabled={submittingGithub || isCompleted}
+                    fullWidth
+                  >
+                    {submittingGithub ? 'Submitting...' : 'Submit Project'}
+                  </Button>
+                </Box>
+                
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Requirements:</strong><br/>
+                    • Include a detailed README.md with setup instructions<br/>
+                    • Provide live demo link (if applicable)<br/>
+                    • Include screenshots or demo videos<br/>
+                    • Document all dependencies and installation steps
+                  </Typography>
+                </Alert>
               </Box>
-            </Box>
+            )}
 
-            <CodeEditor
-              value={code}
-              onChange={setCode}
-              language={language}
-              onLanguageChange={handleLanguageChange}
-              height="400px"
-            />
-
-            {/* Test Input Section */}
-            <Box sx={{ mt: 2 }}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Test Input (Optional)"
-                placeholder="Enter custom input for testing..."
-                value={testInput}
-                onChange={(e) => setTestInput(e.target.value)}
-                variant="outlined"
-                size="small"
-              />
-            </Box>
-
-            {/* Execution Results */}
-            {executionResult && (
+            {/* Execution Results - Only for algorithmic challenges */}
+            {challenge.type === 'algorithmic' && executionResult && (
               <Box sx={{ mt: 2 }}>
                 <Accordion>
                   <AccordionSummary
@@ -468,7 +577,8 @@ const ChallengeDetail = () => {
               </Alert>
             )}
 
-            {submissions.length > 0 && (
+            {/* Recent Submissions - Only for algorithmic challenges */}
+            {challenge.type === 'algorithmic' && submissions.length > 0 && (
               <Box sx={{ mt: 3 }}>
                 <Typography variant="h6" gutterBottom>
                   Recent Submissions
@@ -488,8 +598,8 @@ const ChallengeDetail = () => {
               </Box>
             )}
 
-            {/* Submission History */}
-            {submissions.length > 0 && (
+            {/* Submission History - Only for algorithmic challenges */}
+            {challenge.type === 'algorithmic' && submissions.length > 0 && (
               <Box sx={{ mt: 3 }}>
                 <Typography variant="h6" gutterBottom>
                   Recent Submissions (Judge0 Validated)
