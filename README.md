@@ -8,7 +8,7 @@ A comprehensive competitive programming platform built with React, Node.js, Expr
 
 - **🔐 Secure Authentication**: Team-based registration with JWT tokens and session handling
 - **👥 Team Management**: Create/join teams with invite codes and member management (up to 4 members per team)
-- **🎯 Dual Challenge System**: 
+- **🎯 Dual Challenge System**:
   - **Algorithmic Challenges**: Code problems with Judge0 integration for execution
   - **Buildathon Challenges**: Project-based challenges with GitHub submission
 - **🏆 Progressive Unlock System**: Completion-based unlock system with versioned requirements
@@ -170,6 +170,7 @@ DuoThan-Challenge/
    ```
 
    This will create:
+
    - Sample algorithmic and buildathon challenges
    - Admin user account
    - Test teams and users
@@ -224,17 +225,18 @@ node test-team-creation.js
 2. **🎯 Challenge Navigation:**
 
    - Browse available challenges in the Challenge Portal
-   - **Algorithmic Challenges**: 
+   - **Algorithmic Challenges**:
      - Write code in built-in Monaco editor
      - Real-time execution with Judge0 integration
      - Multiple test cases with hidden test cases
      - Supports Python, C++, Java, JavaScript, C, Go
-   - **Buildathon Challenges**: 
+   - **Buildathon Challenges**:
      - Submit GitHub repository URLs
      - Project-based evaluation
      - Unlocked after completing all algorithmic challenges
 
 3. **🔓 Unlock System:**
+
    - Complete (attempt) all algorithmic challenges to generate unlock code
    - Use unlock code to access buildathon challenges
    - Progress tracked in real-time on dashboard
@@ -335,11 +337,13 @@ node test-team-creation.js
 The platform seamlessly integrates with Judge0 CE API for robust code execution:
 
 ### 🔧 Configuration
+
 - **API Endpoint**: `http://10.3.5.139:2358/`
 - **API Token**: `ZHVvdGhhbjUuMA==`
 - **Rate Limiting**: Configurable submission limits per team
 
 ### 🌐 Supported Languages
+
 - **Python** (3.8+) - `language_id: 71`
 - **C++** (GCC 9.2.0) - `language_id: 54`
 - **Java** (OpenJDK 13.0.1) - `language_id: 62`
@@ -348,6 +352,7 @@ The platform seamlessly integrates with Judge0 CE API for robust code execution:
 - **Go** (1.13.5) - `language_id: 60`
 
 ### 🎯 Features
+
 - **Real-time Execution**: Immediate code execution with detailed results
 - **Multiple Test Cases**: Support for public and hidden test cases
 - **Resource Limits**: Configurable memory and time limits
@@ -356,6 +361,7 @@ The platform seamlessly integrates with Judge0 CE API for robust code execution:
 - **Queue Management**: Efficient submission queue handling
 
 ### 🔍 Execution Flow
+
 1. Code submitted through Monaco editor
 2. Base64 encoding for secure transmission
 3. Judge0 submission with test cases
@@ -368,6 +374,7 @@ The platform seamlessly integrates with Judge0 CE API for robust code execution:
 ### 📊 Core Models
 
 #### User Model
+
 ```javascript
 {
   email: String (unique),
@@ -381,6 +388,7 @@ The platform seamlessly integrates with Judge0 CE API for robust code execution:
 ```
 
 #### Team Model (Enhanced)
+
 ```javascript
 {
   name: String (unique),
@@ -409,6 +417,7 @@ The platform seamlessly integrates with Judge0 CE API for robust code execution:
 ```
 
 #### Challenge Model
+
 ```javascript
 {
   title: String,
@@ -439,6 +448,7 @@ The platform seamlessly integrates with Judge0 CE API for robust code execution:
 ```
 
 #### Submission Model
+
 ```javascript
 {
   teamId: ObjectId (ref: Team),
@@ -478,12 +488,14 @@ The platform seamlessly integrates with Judge0 CE API for robust code execution:
 ## 🔒 Security Features
 
 ### 🔐 Authentication & Authorization
+
 - **JWT Tokens**: Secure stateless authentication with configurable expiration
 - **Password Hashing**: bcrypt with salt rounds for secure password storage
 - **Role-Based Access Control (RBAC)**: Granular permissions for participants and admins
 - **Session Management**: Secure session handling with automatic cleanup
 
 ### 🛡️ API Security
+
 - **Input Validation**: Comprehensive validation using express-validator
 - **Rate Limiting**: Protection against brute force and API abuse
 - **CORS Configuration**: Proper cross-origin resource sharing setup
@@ -491,6 +503,7 @@ The platform seamlessly integrates with Judge0 CE API for robust code execution:
 - **Request Sanitization**: Protection against NoSQL injection attacks
 
 ### 🔒 Data Protection
+
 - **Environment Variables**: Sensitive data stored in environment files
 - **Database Security**: MongoDB connection with authentication
 - **Code Sanitization**: Safe handling of user-submitted code
@@ -501,18 +514,21 @@ The platform seamlessly integrates with Judge0 CE API for robust code execution:
 ### 🏗️ Adding New Features
 
 #### Adding New Challenge Types
+
 1. Update `Challenge.js` model with new type enum
 2. Create specific validation in `challenges.js` routes
 3. Add frontend components for new challenge type
 4. Update submission handling in `submissions.js`
 
 #### Extending Language Support
+
 1. Add language mapping in `judge0Service.js`
 2. Update language dropdown in `CodeEditor.js`
 3. Add default code templates for new language
 4. Update validation and execution logic
 
 #### Creating New Admin Features
+
 1. Add routes in `admin.js` with proper authentication
 2. Create admin components in `frontend/src/pages/admin/`
 3. Update admin navigation and permissions
@@ -521,6 +537,7 @@ The platform seamlessly integrates with Judge0 CE API for robust code execution:
 ### 🧪 Testing Strategy
 
 #### Backend Testing
+
 ```bash
 # Run all backend tests
 cd backend
@@ -534,6 +551,7 @@ node test-judge0-integration.js    # Test Judge0 service
 ```
 
 #### Frontend Testing
+
 ```bash
 # Run React tests
 cd frontend
@@ -545,6 +563,7 @@ npm test -- --testPathPattern=pages
 ```
 
 #### Database Testing
+
 ```bash
 # Test database operations
 node test-database-operations.js
@@ -555,12 +574,14 @@ node test-data-integrity.js
 ### 🔧 Customization Options
 
 #### UI Customization
+
 - **Material-UI Theme**: Modify theme in `frontend/src/App.js`
 - **Component Styling**: Update styles in component files
 - **Layout Changes**: Modify navigation and layout components
 - **Color Schemes**: Update theme colors and branding
 
 #### Business Logic Customization
+
 - **Scoring System**: Modify point calculation in submission handling
 - **Team Limits**: Adjust maximum team size in Team model
 - **Challenge Difficulty**: Add new difficulty levels and validation
@@ -571,6 +592,7 @@ node test-data-integrity.js
 ### 🏭 Production Deployment
 
 #### 1. Environment Setup
+
 ```bash
 # Set production environment
 NODE_ENV=production
@@ -582,6 +604,7 @@ SESSION_SECRET=your-production-session-secret
 ```
 
 #### 2. Database Setup
+
 ```bash
 # Use MongoDB Atlas for production
 # Enable IP whitelisting and authentication
@@ -590,6 +613,7 @@ SESSION_SECRET=your-production-session-secret
 ```
 
 #### 3. Server Configuration
+
 ```bash
 # Use PM2 for process management
 npm install -g pm2
@@ -601,6 +625,7 @@ pm2 start ecosystem.config.js
 ```
 
 #### 4. Frontend Deployment
+
 ```bash
 # Build optimized frontend
 cd frontend
@@ -614,6 +639,7 @@ npm run build
 ### 🐳 Docker Deployment
 
 #### Dockerfile (Backend)
+
 ```dockerfile
 FROM node:16-alpine
 WORKDIR /app
@@ -625,8 +651,9 @@ CMD ["node", "server.js"]
 ```
 
 #### docker-compose.yml
+
 ```yaml
-version: '3.8'
+version: "3.8"
 services:
   backend:
     build: ./backend
@@ -637,14 +664,14 @@ services:
       - MONGODB_URI=mongodb://mongo:27017/duothan
     depends_on:
       - mongo
-  
+
   frontend:
     build: ./frontend
     ports:
       - "80:80"
     depends_on:
       - backend
-  
+
   mongo:
     image: mongo:4.4
     ports:
@@ -659,6 +686,7 @@ volumes:
 ### ☁️ Cloud Deployment Options
 
 #### AWS Deployment
+
 - **EC2**: Virtual servers for backend hosting
 - **RDS**: Managed MongoDB with automatic backups
 - **S3**: Static file storage for frontend assets
@@ -666,12 +694,14 @@ volumes:
 - **ELB**: Load balancing for high availability
 
 #### Google Cloud Platform
+
 - **App Engine**: Serverless backend hosting
 - **Cloud MongoDB**: Managed database service
 - **Cloud Storage**: File storage and CDN
 - **Cloud Load Balancing**: Traffic distribution
 
 #### Microsoft Azure
+
 - **App Service**: Web app hosting
 - **Cosmos DB**: Global database service
 - **Blob Storage**: Static content storage
@@ -682,6 +712,7 @@ volumes:
 ### 🚨 Common Issues & Solutions
 
 #### Database Connection Issues
+
 ```bash
 # Check MongoDB status
 sudo systemctl status mongod
@@ -697,6 +728,7 @@ node -e "require('mongoose').connect('mongodb://localhost:27017/duothan-challeng
 ```
 
 #### Judge0 API Issues
+
 ```bash
 # Test Judge0 connectivity
 curl -X GET "http://10.3.5.139:2358/about" -H "X-RapidAPI-Key: ZHVvdGhhbjUuMA=="
@@ -707,6 +739,7 @@ curl -X GET "http://10.3.5.139:2358/about" -H "X-RapidAPI-Key: ZHVvdGhhbjUuMA=="
 ```
 
 #### Frontend Build Issues
+
 ```bash
 # Clear node_modules and reinstall
 rm -rf node_modules package-lock.json
@@ -721,6 +754,7 @@ npm start
 ```
 
 #### Team Creation Issues
+
 ```bash
 # Check team validation
 node backend/test-team-creation.js
@@ -735,6 +769,7 @@ node backend/fix-team-data.js
 ### 🔍 Debug Tools
 
 #### Backend Debugging
+
 ```bash
 # Enable debug mode
 DEBUG=* npm run dev
@@ -747,6 +782,7 @@ tail -f logs/backend.log
 ```
 
 #### Database Debugging
+
 ```bash
 # Connect to MongoDB shell
 mongo duothan-challenge
@@ -763,6 +799,7 @@ db.runCommand({dbStats: 1})
 ### 📊 Performance Monitoring
 
 #### System Resources
+
 ```bash
 # Monitor server performance
 top -p $(pgrep node)
@@ -774,6 +811,7 @@ df -h
 ```
 
 #### Application Metrics
+
 ```bash
 # Monitor API response times
 curl -w "@curl-format.txt" -o /dev/null -s "http://localhost:5000/api/challenges"
@@ -785,6 +823,7 @@ db.runCommand({collStats: "submissions"})
 ### 🔧 Development Tools
 
 #### Testing Scripts
+
 ```bash
 # Run all tests
 npm run test:all
@@ -796,6 +835,7 @@ npm run test:judge0-integration
 ```
 
 #### Database Management
+
 ```bash
 # Backup database
 mongodump --db duothan-challenge --out backup/
@@ -836,17 +876,20 @@ node backend/reset-database.js
 ### 📋 Contribution Guidelines
 
 1. **Fork the repository**
+
    ```bash
    git clone https://github.com/Gimhani03/Duothan-Challenge---Updated-Version.git
    cd DuoThan-Challenge
    ```
 
 2. **Create feature branch**
+
    ```bash
    git checkout -b feature/new-feature-name
    ```
 
 3. **Development setup**
+
    ```bash
    npm install
    npm run install-all
@@ -854,12 +897,14 @@ node backend/reset-database.js
    ```
 
 4. **Code standards**
+
    - Follow existing code style and conventions
    - Add comprehensive comments and documentation
    - Write tests for new features
    - Update README for significant changes
 
 5. **Testing requirements**
+
    ```bash
    npm run test:all
    npm run lint
@@ -867,6 +912,7 @@ node backend/reset-database.js
    ```
 
 6. **Commit and push**
+
    ```bash
    git add .
    git commit -m "feat: descriptive commit message"
@@ -882,6 +928,7 @@ node backend/reset-database.js
 ### 🐛 Bug Reports
 
 When reporting bugs, please include:
+
 - **Environment details** (OS, Node.js version, browser)
 - **Steps to reproduce** the issue
 - **Expected vs actual behavior**
@@ -891,6 +938,7 @@ When reporting bugs, please include:
 ### 💡 Feature Requests
 
 For new features, please provide:
+
 - **Use case description** and justification
 - **Proposed implementation** approach
 - **Potential impact** on existing functionality
@@ -911,17 +959,20 @@ This project is developed for the **DuoThan** competitive programming competitio
 ## 🙏 Acknowledgments
 
 ### 🏆 Competition Organizers
+
 - **DuoThan Team** - Competition organization and requirements
 - **Judge0 Community** - Code execution infrastructure
 - **MongoDB Team** - Database technology and support
 
 ### 🔧 Technology Stack
+
 - **React Team** - Frontend framework
 - **Node.js Contributors** - Backend runtime
 - **Express.js Team** - Web framework
 - **Material-UI Team** - UI component library
 
 ### 📚 Educational Resources
+
 - **Competitive Programming Community** - Problem-solving methodologies
 - **Open Source Community** - Code examples and best practices
 - **Documentation Contributors** - Comprehensive guides and tutorials
@@ -929,16 +980,19 @@ This project is developed for the **DuoThan** competitive programming competitio
 ## 📞 Support & Contact
 
 ### 🐛 Technical Issues
+
 - **GitHub Issues**: [Report bugs and feature requests](https://github.com/Gimhani03/Duothan-Challenge---Updated-Version/issues)
 - **Documentation**: Comprehensive guides available in the repository
 - **Testing Scripts**: Use provided test scripts for debugging
 
 ### 📧 Competition Support
+
 - **Competition Guidelines**: Refer to official DuoThan documentation
 - **Team Registration**: Contact competition organizers
 - **Technical Queries**: Use GitHub discussions for community support
 
 ### 🤝 Community
+
 - **Discussions**: GitHub Discussions for community interaction
 - **Contributions**: Welcome contributions following the contribution guidelines
 - **Feedback**: Constructive feedback appreciated for continuous improvement
@@ -947,4 +1001,4 @@ This project is developed for the **DuoThan** competitive programming competitio
 
 **Made with ❤️ for the DuoThan Competitive Programming Competition**
 
-*Last updated: July 2025*
+_Last updated: July 2025_
