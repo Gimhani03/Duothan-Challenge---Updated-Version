@@ -20,6 +20,7 @@ import {
   PlayArrow as RunIcon,
   Save as SubmitIcon,
   ExpandMore as ExpandMoreIcon,
+  GitHub as GitHubIcon,
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -36,6 +37,7 @@ const ChallengeDetail = () => {
   const [team, setTeam] = useState(null);
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('python');
+  const [githubUrl, setGithubUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [running, setRunning] = useState(false);
@@ -94,11 +96,15 @@ const ChallengeDetail = () => {
           const submissionsResponse = await submissionsAPI.getMyChallengeSubmissions(id);
           setSubmissions(submissionsResponse.data.submissions);
           
-          // Load the last successful submission's code
+          // Load the last successful submission's code or GitHub URL
           const lastSubmission = submissionsResponse.data.submissions[0];
           if (lastSubmission) {
-            setCode(lastSubmission.code);
-            setLanguage(lastSubmission.language);
+            if (lastSubmission.submissionType === 'github') {
+              setGithubUrl(lastSubmission.githubUrl || '');
+            } else {
+              setCode(lastSubmission.code);
+              setLanguage(lastSubmission.language);
+            }
           }
         } catch (error) {
           console.error('Error fetching submissions:', error);
@@ -208,6 +214,44 @@ const ChallengeDetail = () => {
     } catch (error) {
       console.error('Error submitting code:', error);
       toast.error(error.response?.data?.message || 'Failed to submit code');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleGithubSubmit = async () => {
+    if (!githubUrl.trim()) {
+      toast.warning('Please provide a GitHub repository URL');
+      return;
+    }
+
+    if (!githubUrl.includes('github.com')) {
+      toast.error('Please provide a valid GitHub URL');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      toast.info('Submitting GitHub repository...', { autoClose: 2000 });
+      
+      const response = await submissionsAPI.submitGithub({
+        challengeId: id,
+        githubUrl
+      });
+
+      toast.success('GitHub repository submitted successfully! 🎉');
+      
+      // Refresh team data to update completed challenges
+      const teamResponse = await teamsAPI.getMyTeam();
+      setTeam(teamResponse.data.team);
+
+      // Refresh submissions
+      const submissionsResponse = await submissionsAPI.getMyChallengeSubmissions(id);
+      setSubmissions(submissionsResponse.data.submissions);
+
+    } catch (error) {
+      console.error('Error submitting GitHub URL:', error);
+      toast.error(error.response?.data?.message || 'Failed to submit GitHub repository');
     } finally {
       setSubmitting(false);
     }
@@ -348,118 +392,170 @@ const ChallengeDetail = () => {
           </Paper>
         </Grid>
 
-        {/* Code Editor */}
+        {/* Code Editor / GitHub Submission */}
         <Grid item xs={12} lg={6}>
           <Paper sx={{ p: 3, height: 'fit-content' }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h5">
-                Solution
-              </Typography>
-              <Box display="flex" gap={1}>
-                <Button
-                  variant="outlined"
-                  startIcon={<RunIcon />}
-                  onClick={handleRunCode}
-                  disabled={running || submitting}
-                >
-                  {running ? 'Running...' : 'Run'}
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<SubmitIcon />}
-                  onClick={handleSubmit}
-                  disabled={submitting || isCompleted}
-                >
-                  {submitting ? 'Submitting...' : 'Submit'}
-                </Button>
-              </Box>
-            </Box>
+            {challenge.type === 'algorithmic' ? (
+              // Algorithmic Challenge - Code Editor
+              <>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Typography variant="h5">
+                    Solution
+                  </Typography>
+                  <Box display="flex" gap={1}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<RunIcon />}
+                      onClick={handleRunCode}
+                      disabled={running || submitting}
+                    >
+                      {running ? 'Running...' : 'Run'}
+                    </Button>
+                    <Button
+                      variant="contained"
+                      startIcon={<SubmitIcon />}
+                      onClick={handleSubmit}
+                      disabled={submitting || isCompleted}
+                    >
+                      {submitting ? 'Submitting...' : 'Submit'}
+                    </Button>
+                  </Box>
+                </Box>
 
-            <CodeEditor
-              value={code}
-              onChange={setCode}
-              language={language}
-              onLanguageChange={handleLanguageChange}
-              height="400px"
-            />
+                <CodeEditor
+                  value={code}
+                  onChange={setCode}
+                  language={language}
+                  onLanguageChange={handleLanguageChange}
+                  height="400px"
+                />
 
-            {/* Test Input Section */}
-            <Box sx={{ mt: 2 }}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Test Input (Optional)"
-                placeholder="Enter custom input for testing..."
-                value={testInput}
-                onChange={(e) => setTestInput(e.target.value)}
-                variant="outlined"
-                size="small"
-              />
-            </Box>
+                {/* Test Input Section */}
+                <Box sx={{ mt: 2 }}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    label="Test Input (Optional)"
+                    placeholder="Enter custom input for testing..."
+                    value={testInput}
+                    onChange={(e) => setTestInput(e.target.value)}
+                    variant="outlined"
+                    size="small"
+                  />
+                </Box>
 
-            {/* Execution Results */}
-            {executionResult && (
-              <Box sx={{ mt: 2 }}>
-                <Accordion>
-                  <AccordionSummary
-                    expandIcon={<ExpandMoreIcon />}
-                    aria-controls="execution-results"
-                    id="execution-results-header"
+                {/* Execution Results */}
+                {executionResult && (
+                  <Box sx={{ mt: 2 }}>
+                    <Accordion>
+                      <AccordionSummary
+                        expandIcon={<ExpandMoreIcon />}
+                        aria-controls="execution-results"
+                        id="execution-results-header"
+                      >
+                        <Typography variant="h6">
+                          Execution Results - {executionResult.status}
+                        </Typography>
+                      </AccordionSummary>
+                      <AccordionDetails>
+                        <Box>
+                          <Typography variant="subtitle2" gutterBottom>
+                            Status: <Chip 
+                              label={executionResult.status} 
+                              color={executionResult.statusId === 3 ? 'success' : 'error'}
+                              size="small"
+                            />
+                          </Typography>
+                          
+                          {executionResult.output && (
+                            <Box sx={{ mt: 2 }}>
+                              <Typography variant="subtitle2" gutterBottom>Output:</Typography>
+                              <Paper sx={{ p: 2, bgcolor: 'grey.50', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                                {executionResult.output}
+                              </Paper>
+                            </Box>
+                          )}
+                          
+                          {executionResult.error && (
+                            <Box sx={{ mt: 2 }}>
+                              <Typography variant="subtitle2" gutterBottom color="error">Error:</Typography>
+                              <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                                {executionResult.error}
+                              </Paper>
+                            </Box>
+                          )}
+                          
+                          {executionResult.compileOutput && (
+                            <Box sx={{ mt: 2 }}>
+                              <Typography variant="subtitle2" gutterBottom color="warning.main">Compile Output:</Typography>
+                              <Paper sx={{ p: 2, bgcolor: 'warning.light', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
+                                {executionResult.compileOutput}
+                              </Paper>
+                            </Box>
+                          )}
+                          
+                          <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+                            <Typography variant="body2">
+                              Time: {executionResult.time}s
+                            </Typography>
+                            <Typography variant="body2">
+                              Memory: {executionResult.memory || 0} KB
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </AccordionDetails>
+                    </Accordion>
+                  </Box>
+                )}
+              </>
+            ) : (
+              // Buildathon Challenge - GitHub URL Submission
+              <>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Typography variant="h5">
+                    Project Submission
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<SubmitIcon />}
+                    onClick={handleGithubSubmit}
+                    disabled={submitting || isCompleted}
                   >
-                    <Typography variant="h6">
-                      Execution Results - {executionResult.status}
-                    </Typography>
-                  </AccordionSummary>
-                  <AccordionDetails>
-                    <Box>
-                      <Typography variant="subtitle2" gutterBottom>
-                        Status: <Chip 
-                          label={executionResult.status} 
-                          color={executionResult.statusId === 3 ? 'success' : 'error'}
-                          size="small"
-                        />
-                      </Typography>
-                      
-                      {executionResult.output && (
-                        <Box sx={{ mt: 2 }}>
-                          <Typography variant="subtitle2" gutterBottom>Output:</Typography>
-                          <Paper sx={{ p: 2, bgcolor: 'grey.50', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                            {executionResult.output}
-                          </Paper>
-                        </Box>
-                      )}
-                      
-                      {executionResult.error && (
-                        <Box sx={{ mt: 2 }}>
-                          <Typography variant="subtitle2" gutterBottom color="error">Error:</Typography>
-                          <Paper sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                            {executionResult.error}
-                          </Paper>
-                        </Box>
-                      )}
-                      
-                      {executionResult.compileOutput && (
-                        <Box sx={{ mt: 2 }}>
-                          <Typography variant="subtitle2" gutterBottom color="warning.main">Compile Output:</Typography>
-                          <Paper sx={{ p: 2, bgcolor: 'warning.light', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                            {executionResult.compileOutput}
-                          </Paper>
-                        </Box>
-                      )}
-                      
-                      <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
-                        <Typography variant="body2">
-                          Time: {executionResult.time}s
-                        </Typography>
-                        <Typography variant="body2">
-                          Memory: {executionResult.memory || 0} KB
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </AccordionDetails>
-                </Accordion>
-              </Box>
+                    {submitting ? 'Submitting...' : 'Submit Repository'}
+                  </Button>
+                </Box>
+
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  📋 <strong>Buildathon Challenge</strong><br />
+                  Submit your project as a GitHub repository. Make sure your repository is public and includes a README with setup instructions.
+                </Alert>
+
+                <TextField
+                  fullWidth
+                  label="GitHub Repository URL"
+                  placeholder="https://github.com/yourusername/your-project"
+                  value={githubUrl}
+                  onChange={(e) => setGithubUrl(e.target.value)}
+                  variant="outlined"
+                  sx={{ mb: 2 }}
+                  helperText="Provide the URL to your public GitHub repository containing your project solution"
+                />
+
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    📝 Submission Guidelines:
+                  </Typography>
+                  <Typography variant="body2" component="div">
+                    • Repository must be public and accessible<br />
+                    • Include a comprehensive README.md file<br />
+                    • Add setup/installation instructions<br />
+                    • Document the features and technologies used<br />
+                    • Ensure the project runs without errors<br />
+                    • Include screenshots or demo links if applicable
+                  </Typography>
+                </Box>
+              </>
             )}
 
             {isCompleted && (
@@ -476,11 +572,17 @@ const ChallengeDetail = () => {
                 {submissions.slice(0, 3).map((submission, index) => (
                   <Box key={submission._id} sx={{ mb: 1 }}>
                     <Chip
-                      label={submission.status}
+                      label={submission.status || (submission.submissionType === 'github' ? 'submitted' : 'pending')}
                       size="small"
-                      color={submission.status === 'accepted' ? 'success' : 'error'}
+                      color={submission.status === 'accepted' || submission.submissionType === 'github' ? 'success' : 'error'}
                     />
                     <Typography variant="caption" sx={{ ml: 1 }}>
+                      {submission.submissionType === 'github' && submission.githubUrl && (
+                        <a href={submission.githubUrl} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 8 }}>
+                          {submission.githubUrl}
+                        </a>
+                      )}
+                      {' - '}
                       {new Date(submission.submittedAt).toLocaleString()}
                     </Typography>
                   </Box>
@@ -488,11 +590,11 @@ const ChallengeDetail = () => {
               </Box>
             )}
 
-            {/* Submission History */}
-            {submissions.length > 0 && (
+            {/* Submission History - Only for Algorithmic Challenges */}
+            {challenge.type === 'algorithmic' && submissions.length > 0 && (
               <Box sx={{ mt: 3 }}>
                 <Typography variant="h6" gutterBottom>
-                  Recent Submissions (Judge0 Validated)
+                  Detailed Submission History (Judge0 Validated)
                 </Typography>
                 {submissions.slice(0, 3).map((submission, index) => (
                   <Accordion key={submission._id} sx={{ mb: 1 }}>
