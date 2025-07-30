@@ -80,6 +80,10 @@ const submissionSchema = new mongoose.Schema({
   isCorrect: {
     type: Boolean,
     default: false
+  },
+  feedback: {
+    type: String,
+    maxlength: 500
   }
 }, {
   timestamps: true
