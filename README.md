@@ -1,7 +1,22 @@
 # DuoThan Challenge - Competitive Programming Platform
 
-A comprehensive competitive programming platform built with React, Node.js, Express, and MongoDB. Features team-based registration, algorithmic challenges, buildathon challenges, Judge0 integration for code execution, real-time leaderboards, and advanced admin dashboard with versioned requirements system.
+A comprehensive competitive programming platform built with React, Node.js, Express, and MongoDB. Features team-based registration, algorithmic challenges, buildathon challenges, Judge0 integration for code execution, a progressive unlock system and advanced admin dashboard with versioned requirements system.
 
+---
+
+## Hackathon Project Overview — The Oasis Protocol
+
+### Theme: 
+Ready Player One — progressive, puzzle-driven competition that blends algorithmic problem solving with buildathon-style project tasks.
+
+### Project Overview
+
+This repository contains the buildathon submission for "The Oasis Protocol". Teams compete by solving algorithmic problems (flags). Correctly (or attempted) completion of those algorithmic tasks progressively unlocks buildathon project tasks. The platform supports team and admin authentication, an admin dashboard for challenge and competition management, a Judge0 CE-backed code execution flow, and a real-time leaderboard. 
+
+### Why "The Oasis Protocol"
+Inspired by a layered, exploratory competition experience, The Oasis Protocol pairs rapid algorithmic testing with deeper buildathon tasks. This structure keeps teams engaged, ensures progressive difficulty, and rewards real-world project work after puzzle-solving milestones are reached.
+
+---
 ## 🌟 Features
 
 ### Core Features
