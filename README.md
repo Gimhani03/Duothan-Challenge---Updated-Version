@@ -975,9 +975,7 @@ This project is developed for the **DuoThan** competitive programming competitio
 
 ### 🏆 Competition Organizers
 
-- **DuoThan Team** - Competition organization and requirements
-- **Judge0 Community** - Code execution infrastructure
-- **MongoDB Team** - Database technology and support
+- **Duothan Organizing Team** - IEEE Student Branch of NSBM
 
 ### 🔧 Technology Stack
 
