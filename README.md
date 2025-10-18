@@ -125,7 +125,7 @@ DuoThan-Challenge/
 
    ```bash
    git clone https://github.com/Gimhani03/Duothan-Challenge---Updated-Version.git
-   cd DuoThan-Challenge
+   cd Duothan-Challenge---Updated-Version
    ```
 
 2. **Install dependencies:**
